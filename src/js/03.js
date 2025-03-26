@@ -3,8 +3,11 @@
  *
  * Переписуємо на async/await
  */
-import { fetchPokemon } from './services/pockemonApi.js'; // named import
-import renderPokemonCard from './templates/pockemonCard.js'; // default import
+// import { fetchPokemon } from './services/pockemonApi.js'; // named import
+import onFetchError from './errorHandler/errorHandler.js';
+import { fetchPokemon } from './services/pockemonApi.js';
+import renderPokemonCard from './template/pockemonCard.js';
+// import renderPokemonCard from './templates/pockemonCard.js'; // default import
 
 const cardContainer = document.querySelector('.card-container');
 const searchForm = document.querySelector('.search-form');
@@ -22,7 +25,7 @@ async function onSearch(e) {
     renderPokemonCard(data, cardContainer);
   } catch (err) {
     console.log(err);
-    onFetchError();
+    onFetchError(cardContainer);
   } finally {
     form.reset();
   }
@@ -31,9 +34,4 @@ async function onSearch(e) {
   //   .then(renderPokemonCard)
   //   .catch(onFetchError)
   //   .finally(form.reset);
-}
-
-function onFetchError() {
-  cardContainer.innerHTML = '';
-  alert('Упс, щось пішло не так і ми не знайшли вашого покемона!');
 }
