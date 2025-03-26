@@ -11,7 +11,7 @@
  * - Показуємо спинер поки йде запит
  */
 
-import appendArticlesMarkup from './templates/articles.js';
+import appendArticlesMarkup from './template/articles.js';
 import { getNews } from './services/newsApi.js';
 import buttonService from './services/buttonService.js';
 
