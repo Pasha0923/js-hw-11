@@ -1,130 +1,110 @@
-import iziToast from 'izitoast';
-import 'izitoast/dist/css/iziToast.min.css';
-import SimpleLightbox from 'simplelightbox';
-import 'simplelightbox/dist/simple-lightbox.min.css';
-const BASE_URL = 'https://pixabay.com/api';
-// import fetchData from "./js/pixabay-api"
-// import { createMarkup } from './js/render-functions';
+/**
+ * Отримуємо ключ https://newsapi.org/
+ * Запити робитимемо на http://newsapi.org/v2/everything?q=cat&language=en&pageSize=5&page=1
+ * dd82ff3604224bf1b224da3ef75c9135
+ * Пагінація: номер групи та кількість елементів групи
+ * - Завантажуємо статті при самітті форми
+ * - Завантажуємо статті при натисканні на кнопку «Завантажити ще»
+ * - Оновлюємо групу в параметрах запиту
+ * - Рендерим статті
+ * - Скидання значення при пошуку за новим критерієм
+ * - Показуємо спинер поки йде запит
+ */
 
-// const API_KEY = '41870399-9b44301246ceb98c07efd626a';
-const API_KEY = '41902273-a1675a4e2dad43acb6fd87e89';
-const galleryContainer = document.querySelector('.gallery');
+import appendArticlesMarkup from './templates/articles.js';
+import { getNews } from './services/newsApi.js';
+import buttonService from './services/buttonService.js';
 
-const form = document.querySelector('.form');
+const refs = {
+  searchForm: document.querySelector('.search-form'),
+  articlesContainer: document.querySelector('.articles'),
+  loadMoreBtn: document.querySelector('[data-action="load-more"]'),
+  preloader: document.getElementById('preloader'),
+};
 
-form.addEventListener('submit', handleSearch);
-const loader = document.querySelector('.loader');
-// Когда мы устанавливаем loader.style.display = 'block', это означает, что элемент становится видимым.
-function showLoader() {
-  loader.style.display = 'block';
-}
-// Когда мы устанавливаем loader.style.display = 'none', элемент будет скрыт с экрана.
-// Это означает, что он не будет занимать место на странице и не будет виден.
-function hideLoader() {
-  loader.style.display = 'none';
-}
+// обʼєкт з інформацією, яка нам потрібна для запиту
+const queryParams = {
+  query: '',
+  page: 1,
+  maxPage: 0,
+  pageSize: 5,
+};
 
-// Создали переменную lightbox перед функцией handleSearch, чтобы потом вызывать refresh().
-let lightbox = new SimpleLightbox('.gallery a', {
-  captions: true,
-  captionsData: 'alt',
-  captionDelay: 250,
-});
-function handleSearch(event) {
+/*
+ 1. вішаємо слухач подій на сабміт форми
+  1.1. превент дефолт
+  1.2. отримуємо значення поля інпут
+  1.3. робимо перевірки на валідність поля
+  1.4. посилаємо запит на сервер з нашим значенням
+  1.5. отримуємо дані з серверу і додаємо їх на сторінку
+*/
+
+/*
+ 1. повісити слухач по кліку на кнопку завантажити більше (тоді, коли кнопка покажеться)
+ 2. робимо інший запит на сервер вказуючи нову сторінку (створимо змінну для каунтеру сторінок)
+ 3. поки йде запит - показувати лоадер, коли запит закінчився - прибирати лоадер + відключити кнопку під час запиту (disabled)
+ 4. відмалювати розмітку
+ 5. перевіряємо, якщо у нас кінець колекції - то ховаємо кнопку + прибирати слухач
+
+*/
+
+refs.searchForm.addEventListener('submit', handleSearch);
+
+async function handleSearch(event) {
   event.preventDefault();
-  const query = event.currentTarget.elements.search.value.trim(); // Убираем пробелы
-  console.log('query: ', query);
 
-  if (query === '') {
-    alert('Поле не должно быть пустым!');
-    return; // Останавливаем выполнение функции
+  refs.articlesContainer.innerHTML = ''; // очищуємо контейнер з відповідями перед новим запитом
+  queryParams.page = 1; // коли робимо запит на нову тему новин - сторніки очищаються
+
+  const form = event.currentTarget;
+  queryParams.query = form.elements.query.value.trim(); // записуємо у обʼєект запит користувача
+
+  // перевіряємо, якщо запит пустий - виходимо з функції
+  if (!queryParams.query) {
+    return;
   }
-  // Очищаем контейнер перед добавлением новых элементов
-  galleryContainer.innerHTML = '';
 
-  showLoader(); // Показываем лоадер перед началом запроса
+  try {
+    const { articles, totalResults } = await getNews(queryParams); // посилаємо запит на сервер
 
-  // в этом месте происходит вызов ФУНКЦИИ fetch ЭТО И ЕСТЬ НАЧАЛО ЗАПРОСА!
-  searchImages(query)
-    .then(data => {
-      console.log(data);
-      console.log(data.hits);
-      if (data.hits.length === 0) {
-        // Если массив пустой
-        iziToast.error({
-          message: 'По вашему запросу ничего не найдено!',
-          position: 'center',
-        });
-        return;
-      }
+    queryParams.maxPage = Math.ceil(totalResults / queryParams.pageSize); // рахуємо і записуємо в обʼєкт максимальну кількість сторінок в нашому запиті, для цього ділимо кількість результатів на кількість обʼєктів, які ми отримуємо за один запит + округляємо догори
 
-      // Добавляем разметку в контейнер
-      galleryContainer.insertAdjacentHTML('beforeend', createMarkup(data.hits));
+    appendArticlesMarkup(articles, refs.articlesContainer); // малюємо розмітку
 
-      lightbox.refresh(); // 🔥 ВАЖНО: обновляем lightbox, чтобы он увидел новые изображения
-    })
-    .catch(error => {
-      console.error('Ошибка при загрузке изображений:', error);
-    })
-    .finally(() => {
-      hideLoader(); // Прячем лоадер когда загрузка(запрос) завершился
-      form.reset();
-    });
-}
-function searchImages(images) {
-  return fetch(
-    `${BASE_URL}?key=${API_KEY}&q=${images}&image_type=photo&orientation=horizontal&safesearch=true`
-  ).then(res => {
-    if (!res.ok) {
-      throw new Error(res.statusText);
+    // перевірка на те, чи показувати кнопку при першому запиті (при сабміті форми), якщо кількість обʼєктів відповіді більша за нуль та кількість обʼєктів відповіді не рівна загальної кількості результатів, то показуємо кнопку. Інакше - не показуємо
+    if (articles.length > 0 && articles.length !== totalResults) {
+      buttonService.show(refs.loadMoreBtn); // показуємо кнопку, якщо є результати від серверу і якщо ми не показали всі резульати які є (наприклад, якщо тотал резалст = 100 і кількість артіклів = 100)
+      refs.loadMoreBtn.addEventListener('click', handleLoadMore);
+    } else {
+      buttonService.hide(refs.loadMoreBtn);
     }
-    return res.json();
-  });
-}
-function createMarkup(arr) {
-  return arr
-    .map(
-      ({
-        webformatURL,
-        largeImageURL,
-        tags,
-        likes,
-        views,
-        comments,
-        downloads,
-      }) => `
-  <li class="gallery-item">
-   <a class="gallery-link" href="${largeImageURL}">
-        <img class="gallery-image" src="${webformatURL}" alt="${tags}" />
-   <div class="gallery-info">
-          <div class="info-item">
-           <p class="info-label">Likes</p>
-            <p class="info-value">${likes}</p>
-
-          </div>
-          <div class="info-item">
-          <p class="info-label">Views</p>
-            <p class="info-value">${views}</p>
-
-          </div>
-          <div class="info-item">
-            <p class="info-label">Comments</p>
-            <p class="info-value">${comments}</p>
-
-          </div>
-          <div class="info-item">
-           <p class="info-label">Downloads</p>
-            <p class="info-value">${downloads}</p>
-
-          </div>
-        </div>
-        </a>
-        </li>
-  `
-    )
-    .join('');
+  } catch (err) {
+    console.log(err);
+  } finally {
+    form.reset(); // зкидуємо поля форми
+  }
 }
 
-// webformatURL- це маленька версія зображення , зберігається в атрибуті src тегу <img>;
-//largeImageURL - це велика версія зображення, зберігається в data атрибуті data - source тегу < img >;
-// tags - це опис зображення , зберігається в атрибуті alt тегу <img>
+// обробка натискання на кнопку завантажити більше
+async function handleLoadMore() {
+  queryParams.page += 1; // перед новим запитом збільшуємо номер сторінки коллекції
+  // перед початком запиту - показуємо лоадер і блокуємо кнопку
+  buttonService.disable(refs.loadMoreBtn, refs.preloader);
+
+  try {
+    const { articles } = await getNews(queryParams); // робимо запит на наступну сторінку новин
+
+    appendArticlesMarkup(articles, refs.articlesContainer); //малюємо розмітку
+  } catch (err) {
+    console.log(err);
+  } finally {
+    // після запиту - ховаємо лоадер і розблоковуємо кнопку
+    buttonService.enable(refs.loadMoreBtn, refs.preloader);
+
+    // і обовʼязково після натискання на кнопку та закінчення запиту перевіряємо, якщо ми зараз знаходимось на останній сторінці - то ховаємо кнопку і видаляємо обробник подій!
+    if (queryParams.page === queryParams.maxPage) {
+      buttonService.hide(refs.loadMoreBtn);
+      refs.loadMoreBtn.removeEventListener('click', handleLoadMore);
+    }
+  }
+}
