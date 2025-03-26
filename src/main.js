@@ -29,7 +29,7 @@ const queryParams = {
   maxPage: 0,
   pageSize: 5,
 };
-
+// const hiddenClass = 'is-hidden';
 /*
  1. вішаємо слухач подій на сабміт форми
   1.1. превент дефолт
@@ -66,10 +66,13 @@ async function handleSearch(event) {
 
   try {
     const { articles, totalResults } = await getNews(queryParams); // посилаємо запит на сервер
-
+    console.log(articles);
+    console.log(totalResults);
     queryParams.maxPage = Math.ceil(totalResults / queryParams.pageSize); // рахуємо і записуємо в обʼєкт максимальну кількість сторінок в нашому запиті, для цього ділимо кількість результатів на кількість обʼєктів, які ми отримуємо за один запит + округляємо догори
 
     appendArticlesMarkup(articles, refs.articlesContainer); // малюємо розмітку
+
+    // refs.loadMoreBtn.classList.remove(hiddenClass); // показуємо кнопку завантажити більше
 
     // перевірка на те, чи показувати кнопку при першому запиті (при сабміті форми), якщо кількість обʼєктів відповіді більша за нуль та кількість обʼєктів відповіді не рівна загальної кількості результатів, то показуємо кнопку. Інакше - не показуємо
     if (articles.length > 0 && articles.length !== totalResults) {
